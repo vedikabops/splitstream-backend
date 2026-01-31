@@ -1,7 +1,11 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const cors = require('cors');
+import { db } from './db/index.js';
+import { users } from './db/schema.js';
+
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
+import cors from 'cors';
+
 
 const app = express();
 const server = http.createServer(app);
@@ -208,10 +212,20 @@ io.on('connection', (socket) => {
   });
 });
 
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+  /*
   res.json({ status: 'ok',
     activeRooms: roomState.size,
     totalUsers: Array.from(roomUsers.values()).reduce((sum, users) => sum + users.size, 0)
+   });
+   */
+
+   const allUsers = await db.select().from(users);
+   const len = allUsers.length;
+   res.json({
+      status: 'healthy',
+      database: 'connected',
+      userCount: len
    });
 });
 
