@@ -6,6 +6,10 @@ import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 
+import session from 'express-session';
+import passport from 'passport';
+import './config/passport.js'; // this loads passport config
+
 
 const app = express();
 const server = http.createServer(app);
@@ -19,6 +23,19 @@ app.use(cors({
   origin: allowedOrigins,
   credentials: true
 }));
+
+app.use(express.json());  // parse json bodies
+app.use(express.urlencoded({ extended: true }));  // parse from data
+
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false }
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 const io = new Server(server, {
   cors: {
@@ -228,6 +245,30 @@ app.get('/health', async (req, res) => {
       userCount: len
    });
 });
+
+app.get('/auth/google',
+  passport.authenticate('google', {
+    scope: ['profile', 'email']
+  })
+);
+
+app.get('/auth/google/callback', 
+  passport.authenticate('google', {
+    successRedirect: 'http://localhost:5173',
+    failureRedirect: 'http://localhost:5173'  
+  })
+);
+
+app.get('/auth/logout', (req, res) => {
+
+  req.logout((err) => {
+    if(err) {
+      return res.redirect('http://localhost:5173/error');
+    }
+    res.redirect('http://localhost:5173');
+  });
+});
+
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, '0.0.0.0', () => {
