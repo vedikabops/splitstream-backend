@@ -246,6 +246,16 @@ app.get('/health', async (req, res) => {
    });
 });
 
+app.get('/dev/clear-users', async(req, res) => {
+  const clearUsers = await db.delete(users);
+  req.logout((err) => {
+    res.json({
+      message: 'All users deleted. You are now logged out',
+      note: 'Refresh page'
+    });
+  });
+});
+
 app.get('/auth/google',
   passport.authenticate('google', {
     scope: ['profile', 'email']
@@ -269,6 +279,10 @@ app.get('/auth/logout', (req, res) => {
   });
 });
 
+app.get('/api/user', (req, res) => {
+  if(req.user) { return res.json(req.user); }
+  return res.json(null);
+});
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, '0.0.0.0', () => {
