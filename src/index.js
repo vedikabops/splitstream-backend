@@ -9,6 +9,8 @@ import cors from 'cors';
 import session from 'express-session';
 import passport from 'passport';
 import './config/passport.js'; // this loads passport config
+import { eq } from 'drizzle-orm';
+import bcrypt from 'bcrypt';
 
 
 const app = express();
@@ -270,7 +272,6 @@ app.get('/auth/google/callback',
 );
 
 app.get('/auth/logout', (req, res) => {
-
   req.logout((err) => {
     if(err) {
       return res.redirect('http://localhost:5173/error');
@@ -283,6 +284,46 @@ app.get('/api/user', (req, res) => {
   if(req.user) { return res.json(req.user); }
   return res.json(null);
 });
+
+app.post('/auth/register', async (req, res) => {
+  const { name, email, password } = req.body;
+  const existingUser = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  if (existingUser.length > 0){
+    return res.status(400).json({error: 'Email already exists'});
+  }
+  const hashedPassword = await bcrypt.hash(password, 10);
+  // 10 is the "salt rounds" - higher = more secure but slower
+  const newUser = await db.insert(users)
+    .values({
+      name: name,
+      email: email,
+      password: hashedPassword
+    })
+    .returning();
+  res.json({ success: true, message: 'User created' });
+});
+
+app.post('/auth/login', async(req, res) => {
+  const { email, password } = req.body;
+  const existingUser = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  const user = existingUser[0];
+  if (!user){
+    return res.status(401).json({error: 'Invalid credentials'});
+  } 
+  if (!user.password) {
+    return res.status(401).json({ error: 'Please use Google Sign In' });
+  }
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+  if (!isPasswordValid) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  req.login(user, (err) =>{
+    if (err) {
+      return res.status(500).json({ error: 'Login Failed' });
+    }
+    res.json({ success: true, user });
+  });
+})
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, '0.0.0.0', () => {

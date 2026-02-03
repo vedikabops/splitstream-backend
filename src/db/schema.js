@@ -3,9 +3,10 @@ import { pgTable, serial, text, timestamp, integer, boolean } from 'drizzle-orm/
 // users table
 export const users = pgTable('users', {
     id: serial('id').primaryKey(),
-    googleId: text('google_id').unique(),
+    googleId: text('google_id'),
     email: text('email').notNull().unique(),
     name: text('name').notNull(),
+    password: text('password'),
     profilePicture: text('profile_picture'), // set something default. can be randomized 
     createdAt: timestamp('created_at').defaultNow()
 });
