@@ -1,5 +1,5 @@
 import { db } from './db/index.js';
-import { users } from './db/schema.js';
+import { users, rooms } from './db/schema.js';
 
 import express from 'express';
 import http from 'http';
@@ -20,6 +20,15 @@ const allowedOrigins = [
   "http://localhost:5173",
   "https://splitstream-frontend.vercel.app"
 ];
+
+const generateRoomCode = () => {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  return code;
+};
 
 app.use(cors({
   origin: allowedOrigins,
@@ -56,7 +65,7 @@ io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   socket.on('join-room', (data) => {
-    const { roomId, username} = data;
+    const { roomId, username, userId} = data;
     console.log(`User ${socket.id} joining room: ${roomId}`);
     
     socket.join(roomId);
@@ -74,7 +83,7 @@ io.on('connection', (socket) => {
       roomUsers.set(roomId, new Map());
     }
 
-    roomUsers.get(roomId).set(socket.id, username);
+    roomUsers.get(roomId).set(socket.id, { name: username, userId: userId || null });
     
     const state = roomState.get(roomId);
     const users = Array.from(roomUsers.get(roomId).values());
@@ -208,7 +217,7 @@ io.on('connection', (socket) => {
     // find which room user was in and remove them
     roomUsers.forEach((users, roomId) => {
       if (users.has(socket.id)) {
-        const username = users.get(socket.id);
+        const { name: username } = users.get(socket.id);
         users.delete(socket.id);
 
         const remainingUsers = Array.from(users.values());
@@ -266,8 +275,8 @@ app.get('/auth/google',
 
 app.get('/auth/google/callback', 
   passport.authenticate('google', {
-    successRedirect: 'http://localhost:5173',
-    failureRedirect: 'http://localhost:5173'  
+    successRedirect: `${process.env.FRONTEND_URL || 'http://localhost:5173'}`,
+    failureRedirect: `${process.env.FRONTEND_URL || 'http://localhost:5173'}`  
   })
 );
 
@@ -324,6 +333,98 @@ app.post('/auth/login', async(req, res) => {
     res.json({ success: true, user });
   });
 })
+
+app.post('/api/rooms/create', async(req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Must be logged in' });
+  }
+  const { name, roomType } = req.body;
+  const roomName = name || `${req.user.name}'s Room`;
+  let code;
+  let isUnique = false;
+  while(!isUnique) {
+    code = generateRoomCode();
+    const existing = await db.select().from(rooms).where(eq(rooms.code, code)).limit(1);
+    if (existing.length === 0) {
+      isUnique = true;
+    }
+  }
+
+  const newRoom = await db.insert(rooms)
+    .values({
+      code: code,
+      name: roomName,
+      hostId: req.user.id,
+      isTemporary: false,
+      roomType: roomType || 'collaborative',
+      maxCapacity: 10, // default
+      isActive: true
+    })
+    .returning();
+
+    res.json({ success: true, roomCode: code, roomName: roomName });
+});
+
+app.get('/api/rooms/:code', async (req, res) => {
+  try {
+    const { code } = req.params;
+    console.log('Fetching room with code:', code);
+    const room = await db
+      .select({
+        id: rooms.id,
+        code: rooms.code,
+        name: rooms.name,
+        hostId: rooms.hostId,
+        roomType: rooms.roomType,
+        isTemporary: rooms.isTemporary,
+        maxCapacity: rooms.maxCapacity,
+        isActive: rooms.isActive,
+        createdAt: rooms.createdAt,
+        hostName: users.name  // ← This gets the host's name!
+      })
+      .from(rooms)
+      .leftJoin(users, eq(rooms.hostId, users.id))  // ← Join the tables
+      .where(eq(rooms.code, code))
+      .limit(1);
+
+    if (room.length === 0) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+
+    console.log('Found room:', room[0]);
+    res.json(room[0]);
+  } catch (error){
+    console.error('Error fetching room:', error);
+    res.status(500).json({ error: 'Failed to fetch room'});
+  }
+});
+
+app.patch('/api/rooms/:code', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({error: 'Must be logged in'});
+  }
+
+  const { code } = req.params;
+  const { roomType } = req.body;
+
+  if (!['collaborative', 'presentation'].includes(roomType)) {
+    return res.status(400).json({error: 'Invalid room type' });
+  }
+
+  const room = await db.select().from(rooms).where(eq(rooms.code, code)).limit(1);
+  if (room.length === 0) {
+    return res.status(404).json({error: 'Room not found'});
+  }
+
+  if (room[0].hostId !== req.user.id) {
+    return res.status(403).json({error: 'Only the host can change the room type'});
+  }
+  
+  await db.update(rooms).set({ roomType }).where(eq(rooms.code, code));
+
+  io.to(code).emit('room-type-changed', { roomType });
+  res.json({ success: true, roomType });
+});
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, '0.0.0.0', () => {

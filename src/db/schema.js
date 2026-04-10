@@ -6,7 +6,7 @@ export const users = pgTable('users', {
     googleId: text('google_id'),
     email: text('email').notNull().unique(),
     name: text('name').notNull(),
-    password: text('password'),
+    password: text('password')  ,
     profilePicture: text('profile_picture'), // set something default. can be randomized 
     createdAt: timestamp('created_at').defaultNow()
 });
@@ -18,6 +18,7 @@ export const rooms = pgTable('rooms', {
     name: text('name').notNull(),
     hostId: integer('host_id').notNull().references(() => users.id),
     roomType: text('room_type').notNull().default('collaborative'),
+    isTemporary: boolean('is_temp').default(true),
     maxCapacity: integer('max_capacity').default(10),
     isActive: boolean('is_active').default(true),
     createdAt: timestamp('created_at').defaultNow()
