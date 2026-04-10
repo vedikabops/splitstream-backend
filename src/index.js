@@ -283,9 +283,9 @@ app.get('/auth/google/callback',
 app.get('/auth/logout', (req, res) => {
   req.logout((err) => {
     if(err) {
-      return res.redirect('http://localhost:5173/error');
+      return res.redirect(`${process.env.FRONTEND_URL}/error`);
     }
-    res.redirect('http://localhost:5173');
+    res.redirect(process.env.FRONTEND_URL);
   });
 });
 
