@@ -14,6 +14,7 @@ import bcrypt from 'bcrypt';
 
 
 const app = express();
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 
 const allowedOrigins = [
@@ -42,7 +43,11 @@ app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false }
+  cookie: {
+    secure: true,
+    sameSite: 'none',
+    httpOnly: true
+  }
 }));
 
 app.use(passport.initialize());
