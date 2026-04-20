@@ -291,10 +291,14 @@ app.get('/auth/google',
 
 app.get('/auth/google/callback', 
   passport.authenticate('google', {
-    successRedirect: frontendUrl,
+    successRedirect: `${process.env.BACKEND_URL}/auth/success`,
     failureRedirect: frontendUrl
   })
 );
+
+app.get('/auth/success', (req, res) => {
+  res.redirect(frontendUrl);
+});
 
 app.get('/auth/logout', (req, res) => {
   req.logout((err) => {
