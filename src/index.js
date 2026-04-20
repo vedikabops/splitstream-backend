@@ -310,6 +310,7 @@ app.get('/auth/logout', (req, res) => {
 });
 
 app.get('/api/user', (req, res) => {
+  res.set('Cache-Control', 'no-store');
   if(req.user) { return res.json(req.user); }
   return res.json(null);
 });
