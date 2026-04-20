@@ -32,14 +32,17 @@ passport.use(new GoogleStrategy({
 
 // serialize
 passport.serializeUser((user, done) => {
+    console.log("SERIALIZE USER:", user);
     done(null, user.id);
 });
 
 passport.deserializeUser(async (id, done) => {
-    try{
+    console.log("DESERIALIZE ID:", id);
+    try {
         const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+        console.log("DESERIALIZED USER:", result[0]);
         done(null, result[0]);
     } catch (error) {
-        done(error, null)
+        done(error, null);
     }
 });
