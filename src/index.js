@@ -37,12 +37,7 @@ const generateRoomCode = () => {
 };
 
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    return callback(new Error(`Origin not allowed by CORS: ${origin}`));
-  },
+  origin: "https://splitstream-frontend.vercel.app",
   credentials: true
 }));
 
@@ -55,11 +50,16 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax',
+    secure: true,
+    sameSite: "none",
     httpOnly: true
   }
 }));
+
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Credentials", "true");
+  next();
+});
 
 app.use(passport.initialize());
 app.use(passport.session());
