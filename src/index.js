@@ -17,10 +17,15 @@ const app = express();
 app.set('trust proxy', 1);
 const server = http.createServer(app);
 
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://splitstream-frontend.vercel.app"
-];
+const isProduction = process.env.NODE_ENV === 'production';
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+const configuredOrigins = (process.env.FRONTEND_URLS || frontendUrl)
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const allowedOrigins = isProduction
+  ? configuredOrigins
+  : [...new Set([...configuredOrigins, 'http://localhost:5173'])];
 
 const generateRoomCode = () => {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -32,7 +37,12 @@ const generateRoomCode = () => {
 };
 
 app.use(cors({
-  origin: allowedOrigins,
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Origin not allowed by CORS: ${origin}`));
+  },
   credentials: true
 }));
 
@@ -41,11 +51,12 @@ app.use(express.urlencoded({ extended: true }));  // parse from data
 
 app.use(session({
   secret: process.env.SESSION_SECRET,
+  proxy: true,
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: true,
-    sameSite: 'none',
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
     httpOnly: true
   }
 }));
@@ -280,17 +291,17 @@ app.get('/auth/google',
 
 app.get('/auth/google/callback', 
   passport.authenticate('google', {
-    successRedirect: `${process.env.FRONTEND_URL || 'http://localhost:5173'}`,
-    failureRedirect: `${process.env.FRONTEND_URL || 'http://localhost:5173'}`  
+    successRedirect: frontendUrl,
+    failureRedirect: frontendUrl
   })
 );
 
 app.get('/auth/logout', (req, res) => {
   req.logout((err) => {
     if(err) {
-      return res.redirect(`${process.env.FRONTEND_URL}/error`);
+      return res.redirect(`${frontendUrl}/error`);
     }
-    res.redirect(process.env.FRONTEND_URL);
+    res.redirect(frontendUrl);
   });
 });
 
