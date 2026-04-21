@@ -297,15 +297,7 @@ app.get('/auth/google/callback',
 );
 
 app.get('/auth/success', (req, res) => {
-  req.session.save((err) => {
-    res.send(`
-      <html>
-        <body>
-          <script>window.location.href = '${frontendUrl}';</script>
-        </body>
-      </html>
-    `);
-  });
+  res.redirect(frontendUrl);
 });
 
 app.get('/auth/logout', (req, res) => {

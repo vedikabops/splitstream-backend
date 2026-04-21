@@ -39,7 +39,6 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (id, done) => {
     console.log("DESERIALIZE ID:", id);
-
     try {
         const result = await db
             .select()
